@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <iostream>
+
 
 struct Word
 {
@@ -75,9 +77,7 @@ static void readInputWords ()
   
   while (!endEncountered)
   {
-    if (!std::gets( linebuf )) // EOF?
-      return;
-    
+    std::cin >> linebuf;
     endEncountered = std::strcmp( linebuf, "end" ) == 0;
 
     // Pass the word to the worker thread
