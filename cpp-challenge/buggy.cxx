@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <cstring>
 #include <iostream>
-
+#include <atomic>
 
 struct Word
 {
@@ -23,7 +23,7 @@ struct Word
 static std::vector<Word*> s_wordsArray;
 static Word s_word;
 static int s_totalFound;
-
+std::atomic<bool> got_word(false);
 
 // Worker thread: consume words passed from the main thread and insert them
 // in the 'word list' (s_wordsArray), while removing duplicates. Terminate when
@@ -33,13 +33,13 @@ static void workerThread ()
   bool endEncountered = false;
   bool found = false;
   
-  while (!endEncountered)
-  {
-    if (s_word.data[0]) // Do we have a new word?
+  while (!endEncountered) {
+  
+    if (got_word) // Do we have a new word?
     {
-      Word * w = new Word(s_word); // Copy the word
+      Word * w = new Word(s_word.data); // Copy the word
       
-      s_word.data[0] = 0; // Inform the producer that we consumed the word
+      got_word = false; // Inform the producer that we consumed the word */
       
       endEncountered = std::strcmp( s_word.data, "end" ) == 0;
       
@@ -81,8 +81,11 @@ static void readInputWords ()
     endEncountered = std::strcmp( linebuf, "end" ) == 0;
 
     // Pass the word to the worker thread
-    std::strcpy( s_word.data, linebuf );
-    while (s_word.data[0]); // Wait for the worker thread to consume it
+    s_word.data = linebuf;
+    got_word = true;
+    std::cout << linebuf <<std::endl;
+    while(got_word); // Wait for the worker thread to consume it
+    std::cout << "ok "<<std::endl;
   }
 
   worker->join(); // Wait for the worker to terminate
