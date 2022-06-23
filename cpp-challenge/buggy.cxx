@@ -5,22 +5,29 @@
 #include <cstring>
 #include <iostream>
 #include <atomic>
+#include <map>
+#include <string>
 
 struct Word
 {
   char * data;
   int count;
 
-  Word ( char * data_ ) :
+  Word ( char * data_) :
     data( ::strdup(data_) )
   {}
   
+  Word ( char * data_, int count_) :
+    data( ::strdup(data_) ),
+    count(count_)
+  {}
+
   Word () :
     data((char *)"")
   {}
 };
 
-static std::vector<Word*> s_wordsArray;
+static std::map<std::string, Word*> s_wordsArray;
 static Word s_word;
 static int s_totalFound;
 std::atomic<bool> got_word(false);
@@ -37,7 +44,7 @@ static void workerThread ()
   
     if (got_word) // Do we have a new word?
     {
-      Word * w = new Word(s_word.data); // Copy the word
+      Word *w = new Word(s_word.data, 1); // Copy the word
       
       got_word = false; // Inform the producer that we consumed the word */
       
@@ -45,22 +52,18 @@ static void workerThread ()
       
       if (!endEncountered)
       {
-        // Do not insert duplicate words
-        for ( auto p : s_wordsArray )
-        {
-          if (!std::strcmp( p->data, w->data ))
-          {
-            ++p->count;
-            found = true;
-            break;
-          }
+        // Do not insert duplicate words, use input string as hash key
+        std::string input_word = s_word.data;
+        if (s_wordsArray.find(input_word) == s_wordsArray.end()) {
+            //not found
+            s_wordsArray.insert(std::pair<std::string, Word*>(input_word, w));
+        } else {
+            //found
+            s_wordsArray[input_word]->count++;
         }
-
-        if (!found)
-          s_wordsArray.push_back( w );
       }
     }
-  }
+  }// end while
 };
 
 // Read input words from STDIN and pass them to the worker thread for
@@ -78,14 +81,14 @@ static void readInputWords ()
   while (!endEncountered)
   {
     std::cin >> linebuf;
+    if (!std::cin.good()) return;
+
     endEncountered = std::strcmp( linebuf, "end" ) == 0;
 
     // Pass the word to the worker thread
     s_word.data = linebuf;
     got_word = true;
-    std::cout << linebuf <<std::endl;
     while(got_word); // Wait for the worker thread to consume it
-    std::cout << "ok "<<std::endl;
   }
 
   worker->join(); // Wait for the worker to terminate
@@ -97,37 +100,25 @@ static void readInputWords ()
 static void lookupWords ()
 {
   bool found;
-  char * linebuf = new char[32];
+  std::string linebuf;
     
   for(;;)
   {
     std::printf( "\nEnter a word for lookup:" );
-    if (std::scanf( "%s", linebuf ) == EOF)
-      return;
+    std::cin >> linebuf;
+    if (!std::cin.good()) return;
 
-    // Initialize the word to search for
-    Word * w = new Word();
-    std::strcpy( w->data, linebuf );
 
     // Search for the word
-    unsigned i;
-    for ( i = 0; i < s_wordsArray.size(); ++i )
-    {
-      if (std::strcmp( s_wordsArray[i]->data, w->data ) == 0)
-      {
-        found = true;
-        break;
-      }
+    if (s_wordsArray.find(linebuf) == s_wordsArray.end()) {
+        //not found
+        std::printf( "'%s' was NOT found in the initial word list\n", linebuf.c_str());
+    } else {
+        //found
+        std::printf( "SUCCESS: '%s' was present %d times in the initial word list\n",
+                   linebuf.c_str(), s_wordsArray[linebuf]->count );
+        ++s_totalFound;
     }
-
-    if (found)
-    {
-      std::printf( "SUCCESS: '%s' was present %d times in the initial word list\n",
-                   s_wordsArray[i]->data, s_wordsArray[i]->count );
-      ++s_totalFound;
-    }
-    else
-      std::printf( "'%s' was NOT found in the initial word list\n", w->data );
   }
 }
 
@@ -136,14 +127,11 @@ int main ()
   try
   {
     readInputWords();
-    
-    // Sort the words alphabetically
-    std::sort( s_wordsArray.begin(), s_wordsArray.end() );
 
     // Print the word list
     std::printf( "\n=== Word list:\n" );
     for ( auto p : s_wordsArray )
-      std::printf( "%s %d\n", p->data, p->count );
+      std::printf( "%s %d\n", p.first.c_str(), p.second->count);
 
     lookupWords();
 
