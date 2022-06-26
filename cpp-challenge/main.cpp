@@ -1,4 +1,4 @@
-#include "buggy/buggy.cxx"
+#include "buggy/buggy.h"
 
 int main() {
     Buggy myBuggy;
